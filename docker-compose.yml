@@ -1,0 +1,78 @@
+services:
+  ollama:
+    image: ollama/ollama:latest
+    container_name: briefmd-ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama-models:/root/.ollama
+    networks:
+      - briefmd-net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434/"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.api
+    container_name: briefmd-api
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data/datasets:/app/data/datasets:ro
+    env_file:
+      - .env
+    environment:
+      - OLLAMA_HOST=http://ollama:11434
+    depends_on:
+      ollama:
+        condition: service_healthy
+    networks:
+      - briefmd-net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  ed-dashboard:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.frontend
+    container_name: briefmd-ed
+    ports:
+      - "8501:8501"
+    environment:
+      - API_URL=http://api:8000
+      - DASHBOARD=ed
+    depends_on:
+      api:
+        condition: service_healthy
+    networks:
+      - briefmd-net
+
+  pcp-dashboard:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.frontend
+    container_name: briefmd-pcp
+    ports:
+      - "8502:8501"
+    environment:
+      - API_URL=http://api:8000
+      - DASHBOARD=pcp
+    depends_on:
+      api:
+        condition: service_healthy
+    networks:
+      - briefmd-net
+
+volumes:
+  ollama-models:
+
+networks:
+  briefmd-net:
+    driver: bridge
