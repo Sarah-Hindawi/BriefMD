@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 import time
 import logging
-from api.routers import ed, patients, pcp, chat, health
+from api.routers import ed, patients, pcp, chat, Health as health
 from api.dependencies import init_services, shutdown_services
 from config.logging import setup_logging
 

@@ -7,7 +7,7 @@ from core.connector import Connector
 from core.extractor import Extractor
 from core.llm_client import LLMClient
 from core.models.extracted import ExtractedData
-from core.models.flags import VerificationFlags
+from core.models.flags import VerificationResult
 from core.models.network import ComorbidityNetwork
 from core.models.report import (
     EDReport,
@@ -164,24 +164,18 @@ def _get_patient_codes(diagnoses: pd.DataFrame) -> list[str]:
     return list(diagnoses["icd9_code"].astype(str).str.strip().unique())
 
 
-def _generate_fix_suggestions(flags: VerificationFlags, extracted: ExtractedData) -> list[str]:
+def _generate_fix_suggestions(result: VerificationResult, extracted: ExtractedData) -> list[str]:
     suggestions: list[str] = []
 
-    for c in flags.contraindications:
-        suggestions.append(
-            f"CRITICAL: Review {c.drug} — {c.severity_label} with {c.condition}. "
-            f"Consider discontinuing or documenting clinical justification."
-        )
+    for f in result.flags:
+        if f.severity == "critical":
+            suggestions.append(f"CRITICAL: {f.title}. {f.detail}")
+        elif f.category == "medication":
+            suggestions.append(f"Review: {f.title}. {f.detail}")
 
-    for di in flags.drug_interactions:
+    if result.diagnoses_missed:
         suggestions.append(
-            f"Review interaction: {di.drug_a} + {di.drug_b}. {di.detail}"
-        )
-
-    if flags.diagnosis_gaps:
-        gap_names = [g.diagnosis for g in flags.diagnosis_gaps[:5]]
-        suggestions.append(
-            f"Add missing diagnoses to note: {', '.join(gap_names)}"
+            f"Add missing diagnoses to note: {', '.join(result.diagnoses_missed[:5])}"
         )
 
     if not extracted.follow_up_plan:
@@ -203,29 +197,29 @@ def _generate_fix_suggestions(flags: VerificationFlags, extracted: ExtractedData
     return suggestions
 
 
-def _generate_todo_list(flags: VerificationFlags, extracted: ExtractedData) -> list[TodoItem]:
+def _generate_todo_list(result: VerificationResult, extracted: ExtractedData) -> list[TodoItem]:
     todos: list[TodoItem] = []
 
-    for c in flags.contraindications:
-        todos.append(TodoItem(
-            priority=1,
-            action=f"Urgent: Review {c.drug} — {c.severity_label} with {c.condition}",
-            reason=c.detail,
-            category="medication",
-        ))
+    for f in result.flags:
+        if f.severity == "critical":
+            todos.append(TodoItem(
+                priority=1,
+                action=f.title,
+                reason=f.detail,
+                category=f.category,
+            ))
+        elif f.severity == "warning" and f.category == "medication":
+            todos.append(TodoItem(
+                priority=1,
+                action=f.title,
+                reason=f.detail,
+                category="medication",
+            ))
 
-    for di in flags.drug_interactions:
-        todos.append(TodoItem(
-            priority=1,
-            action=f"Review interaction: {di.drug_a} + {di.drug_b}",
-            reason=di.detail,
-            category="medication",
-        ))
-
-    for gap in flags.diagnosis_gaps:
+    for diag in result.diagnoses_missed:
         todos.append(TodoItem(
             priority=2,
-            action=f"Confirm diagnosis: {gap.diagnosis} (ICD9 {gap.icd9_code})",
+            action=f"Confirm diagnosis: {diag}",
             reason="Coded in hospital records but not mentioned in discharge note",
             category="referral",
         ))

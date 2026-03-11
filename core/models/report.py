@@ -3,7 +3,7 @@ from __future__ import annotations
 from pydantic import BaseModel, Field
 
 from core.models.extracted import ExtractedData
-from core.models.flags import VerificationFlags
+from core.models.flags import VerificationResult
 from core.models.network import ComorbidityNetwork
 
 
@@ -27,7 +27,7 @@ class FullReport(BaseModel):
     subject_id: int
     hadm_id: int
     extracted: ExtractedData
-    flags: VerificationFlags
+    flags: VerificationResult
     network: ComorbidityNetwork
     hqo_checklist: list[ChecklistItem] = Field(default_factory=list)
     pcp_preferences: list[ChecklistItem] = Field(default_factory=list)
@@ -39,7 +39,7 @@ class EDReport(BaseModel):
     subject_id: int
     hadm_id: int
     extracted: ExtractedData
-    flags: VerificationFlags
+    flags: VerificationResult
     network: ComorbidityNetwork
     hqo_checklist: list[ChecklistItem] = Field(default_factory=list)
     fix_suggestions: list[str] = Field(default_factory=list)
@@ -51,7 +51,7 @@ class PCPReport(BaseModel):
     subject_id: int
     hadm_id: int
     extracted: ExtractedData
-    flags: VerificationFlags
+    flags: VerificationResult
     network: ComorbidityNetwork
     hqo_checklist: list[ChecklistItem] = Field(default_factory=list)
     todo_list: list[TodoItem] = Field(default_factory=list)

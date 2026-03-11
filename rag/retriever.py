@@ -1,18 +1,20 @@
 """
-BriefMD Vector Store
-====================
-Abstraction layer over the vector database.
-Your teammate built Qdrant. This wraps her code so the agent
-doesn't need to know which vector DB is underneath.
+BriefMD Retriever
+=================
+Adapter between agent.py and teammate's rag/vector_store.py.
 
-The agent calls:
-    results = vector_store.find_similar_cases(query_text, n=5)
-    results = vector_store.search_guidelines(query_text, n=3)
+Her code:
+    upsert_case(case_id, text, metadata)      <- ingestion
+    retrieve_similar(query, n_results=3)       <- returns list[dict]
 
-That's it. Everything below is wiring.
+Collection: discharge_summaries
+Embedding: all-MiniLM-L6-v2 (384 dims, cosine)
+Payload: case_id, admission_diagnosis, gender, age, text
+Storage: local file persistence (qdrant_db/ folder)
 
-STATUS: Adapter ready. Wire to teammate's Qdrant code once you
-        know her collection names and query functions.
+This file:
+    retriever.find_similar_cases(query, n)     <- agent.py calls this
+    retriever.search_guidelines(query, n)      <- chat router calls this
 """
 
 import logging
@@ -24,211 +26,144 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class SimilarCase:
-    """A similar patient case retrieved from the vector store."""
-    hadm_id: int = 0
-    score: float = 0.0           # Similarity score (higher = more similar)
-    summary_snippet: str = ""     # Relevant text chunk
-    admission_diagnosis: str = ""
-    metadata: dict = field(default_factory=dict)
-
-
-@dataclass
-class GuidelineChunk:
-    """A retrieved chunk from clinical guidelines."""
-    text: str = ""
-    source: str = ""             # "HQO", "drug_interaction", "clinical_guideline"
+    case_id: str = ""
     score: float = 0.0
+    text: str = ""
+    admission_diagnosis: str = ""
+    age: int = 0
+    gender: str = ""
     metadata: dict = field(default_factory=dict)
 
 
-class VectorStore:
+class Retriever:
     """
-    Wraps the Qdrant vector database.
+    Wraps rag/vector_store.py for use by the agent and chat router.
 
-    Initialize once at startup. The agent and chat router call
-    find_similar_cases() and search_guidelines().
+    Initialize with the vector_store module's retrieve function.
+    Falls back gracefully if Qdrant isn't running.
     """
 
-    def __init__(
-        self,
-        qdrant_url: str = "http://localhost:6333",
-        cases_collection: str = "clinical_cases",
-        guidelines_collection: str = "guidelines",
-    ):
+    def __init__(self, vector_store_module=None):
         """
         Args:
-            qdrant_url: Qdrant server URL (local Docker or Qdrant Cloud).
-            cases_collection: Collection name for patient case embeddings.
-            guidelines_collection: Collection name for guideline chunks.
+            vector_store_module: The imported rag.vector_store module,
+                or any object with a retrieve_similar(query, n_results) method.
         """
-        self.qdrant_url = qdrant_url
-        self.cases_collection = cases_collection
-        self.guidelines_collection = guidelines_collection
-        self._client = None
-        self._embedder = None
-
-        try:
-            from qdrant_client import QdrantClient
-            self._client = QdrantClient(url=qdrant_url)
-            logger.info(f"Connected to Qdrant at {qdrant_url}")
-        except ImportError:
-            logger.warning("qdrant-client not installed. pip install qdrant-client")
-        except Exception as e:
-            logger.warning(f"Could not connect to Qdrant at {qdrant_url}: {e}")
-
-        # Initialize embedding model
-        # Your teammate likely used one of these:
-        try:
-            from sentence_transformers import SentenceTransformer
-            self._embedder = SentenceTransformer("all-MiniLM-L6-v2")
-            logger.info("Embedding model loaded: all-MiniLM-L6-v2")
-        except ImportError:
+        self._vs = vector_store_module
+        if self._vs is None:
             try:
-                # Qdrant's built-in fast embeddings
-                from fastembed import TextEmbedding
-                self._embedder = TextEmbedding("BAAI/bge-small-en-v1.5")
-                logger.info("Embedding model loaded: fastembed BGE-small")
-            except ImportError:
-                logger.warning(
-                    "No embedding model available. "
-                    "pip install sentence-transformers OR pip install fastembed"
-                )
+                from rag import vector_store
+                self._vs = vector_store
+                logger.info("Retriever connected to rag.vector_store")
+            except Exception as e:
+                logger.warning(f"Could not import rag.vector_store: {e}")
 
     @property
     def available(self) -> bool:
-        return self._client is not None and self._embedder is not None
-
-    # -----------------------------------------------------------------------
-    # Public API — this is what the agent calls
-    # -----------------------------------------------------------------------
+        return self._vs is not None and hasattr(self._vs, "retrieve_similar")
 
     def find_similar_cases(
         self,
-        query_text: str,
-        n: int = 5,
-        score_threshold: float = 0.3,
+        query: str,
+        n: int = 3,
     ) -> list[SimilarCase]:
         """
-        Find patient cases similar to the query text.
-
-        Used by the agent to give the LLM domain context:
-        "In similar patients, X% had complication Y."
+        Find similar patient cases. Called by agent.py for context enrichment.
 
         Args:
-            query_text: Discharge summary or clinical description.
+            query: Discharge summary text or clinical description.
             n: Number of similar cases to return.
-            score_threshold: Minimum similarity score (0-1).
 
         Returns:
-            List of SimilarCase objects, sorted by relevance.
+            List of SimilarCase with text, diagnosis, demographics.
         """
         if not self.available:
-            logger.warning("Vector store not available — returning empty results")
+            logger.warning("Retriever not available — returning empty results")
             return []
 
         try:
-            embedding = self._embed(query_text)
-
-            from qdrant_client.models import models
-            results = self._client.query_points(
-                collection_name=self.cases_collection,
-                query=embedding,
-                limit=n,
-                score_threshold=score_threshold,
-            )
+            raw_results = self._vs.retrieve_similar(query=query, n_results=n)
 
             cases = []
-            for point in results.points:
-                payload = point.payload or {}
+            for item in raw_results:
                 cases.append(SimilarCase(
-                    hadm_id=payload.get("hadm_id", 0),
-                    score=point.score,
-                    summary_snippet=payload.get("text", payload.get("summary", "")),
-                    admission_diagnosis=payload.get("admission_diagnosis", ""),
-                    metadata=payload,
+                    case_id=str(item.get("case_id", "")),
+                    score=float(item.get("score", 0.0)),
+                    text=item.get("text", ""),
+                    admission_diagnosis=item.get("admission_diagnosis", ""),
+                    age=int(item.get("age", 0)),
+                    gender=item.get("gender", ""),
+                    metadata=item,
                 ))
 
-            logger.info(f"Found {len(cases)} similar cases for query (len={len(query_text)})")
+            logger.info(f"Retrieved {len(cases)} similar cases")
             return cases
 
         except Exception as e:
-            logger.error(f"Similar case search failed: {e}")
+            logger.error(f"Similar case retrieval failed: {e}")
             return []
 
     def search_guidelines(
         self,
-        query_text: str,
-        n: int = 5,
-        source_filter: Optional[str] = None,
-    ) -> list[GuidelineChunk]:
+        query: str,
+        n: int = 3,
+    ) -> list[dict]:
         """
-        Search clinical guidelines for relevant context.
+        Search for relevant guideline context. Uses same vector store
+        but could be a separate collection later.
 
-        Used by the RAG pipeline to ground LLM answers in guidelines.
+        For now, reuses discharge_summaries collection — similar cases
+        often contain relevant clinical patterns.
+        """
+        cases = self.find_similar_cases(query=query, n=n)
+        return [
+            {
+                "text": c.text[:500],
+                "source": "similar_case",
+                "diagnosis": c.admission_diagnosis,
+                "score": c.score,
+            }
+            for c in cases
+        ]
+
+    def build_rag_context(
+        self,
+        query: str,
+        n: int = 3,
+        max_chars: int = 3000,
+    ) -> str:
+        """
+        Build a context string for the LLM prompt from retrieved cases.
+
+        Used by agent.ask() and the /chat/ask endpoint:
+            context = retriever.build_rag_context(question)
+            llm.generate(prompt=f"Context:\\n{context}\\n\\nQuestion: {question}")
 
         Args:
-            query_text: The question or topic to search for.
-            n: Number of chunks to return.
-            source_filter: Filter by source type ("HQO", "drug_interaction", etc.)
+            query: The question or clinical text to search with.
+            n: Number of cases to retrieve.
+            max_chars: Maximum total characters in the context string.
 
         Returns:
-            List of GuidelineChunk objects, sorted by relevance.
+            Formatted string of similar cases for prompt injection.
         """
-        if not self.available:
-            logger.warning("Vector store not available — returning empty results")
-            return []
+        cases = self.find_similar_cases(query=query, n=n)
 
-        try:
-            embedding = self._embed(query_text)
+        if not cases:
+            return "No similar cases found in the database."
 
-            query_filter = None
-            if source_filter:
-                from qdrant_client.models import models
-                query_filter = models.Filter(
-                    must=[
-                        models.FieldCondition(
-                            key="source",
-                            match=models.MatchValue(value=source_filter),
-                        )
-                    ]
-                )
-
-            results = self._client.query_points(
-                collection_name=self.guidelines_collection,
-                query=embedding,
-                query_filter=query_filter,
-                limit=n,
+        parts = []
+        total = 0
+        for i, case in enumerate(cases, 1):
+            snippet = (
+                f"[Similar Case {i}] "
+                f"Diagnosis: {case.admission_diagnosis} | "
+                f"Age: {case.age}, Gender: {case.gender}\n"
+                f"{case.text[:800]}"
             )
+            if total + len(snippet) > max_chars:
+                break
+            parts.append(snippet)
+            total += len(snippet)
 
-            chunks = []
-            for point in results.points:
-                payload = point.payload or {}
-                chunks.append(GuidelineChunk(
-                    text=payload.get("text", ""),
-                    source=payload.get("source", "unknown"),
-                    score=point.score,
-                    metadata=payload,
-                ))
-
-            logger.info(f"Found {len(chunks)} guideline chunks for query")
-            return chunks
-
-        except Exception as e:
-            logger.error(f"Guideline search failed: {e}")
-            return []
-
-    # -----------------------------------------------------------------------
-    # Private
-    # -----------------------------------------------------------------------
-
-    def _embed(self, text: str) -> list[float]:
-        """Convert text to embedding vector."""
-        if hasattr(self._embedder, "encode"):
-            # sentence-transformers
-            return self._embedder.encode(text).tolist()
-        elif hasattr(self._embedder, "embed"):
-            # fastembed
-            embeddings = list(self._embedder.embed([text]))
-            return embeddings[0].tolist()
-        else:
-            raise RuntimeError(f"Unknown embedder type: {type(self._embedder)}")
+        return "\n\n".join(parts)

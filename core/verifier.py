@@ -25,10 +25,10 @@ import pandas as pd
 from core.models.extracted import ExtractedData
 from core.models.flags import VerificationFlag, VerificationResult
 from knowledge.drug_interactions import (
-    check_drug_disease_interactions,
-    DrugDiseaseInteraction,
+    check_interactions,
+    InteractionFlag,
 )
-from knowledge.lab_ranges import LabRanges, LabAlert
+from knowledge.lab_ranges import LabRangeChecker, LabAlert
 
 logger = logging.getLogger(__name__)
 
@@ -37,18 +37,18 @@ class Verifier:
     """
     Compares LLM-extracted data against structured patient records.
 
-    Initialize with a LabRanges instance (computed once at startup).
+    Initialize with a LabRangeChecker instance (computed once at startup).
     Then call verify() per patient.
     """
 
     def __init__(
         self,
-        lab_ranges: Optional[LabRanges] = None,
+        lab_ranges: Optional[LabRangeChecker] = None,
         diagnosis_dict: Optional[pd.DataFrame] = None,
     ):
         """
         Args:
-            lab_ranges: Pre-computed LabRanges from the full dataset.
+            lab_ranges: Pre-computed LabRangeChecker from the full dataset.
                         If None, lab checks are skipped.
             diagnosis_dict: diagnosis_dictionary.csv.gz for ICD-9 → name lookup.
         """
@@ -244,17 +244,8 @@ class Verifier:
             result.medications_in_record = 0
 
         # b) Drug-disease interactions
-        # Check BOTH note meds and record meds against patient's diagnoses
-        if not patient_diagnoses.empty:
-            icd9_codes = patient_diagnoses["icd9_code"].astype(str).str.strip().tolist()
-        else:
-            icd9_codes = []
-
-        all_drug_names = set(note_med_names)
-        for drug in record_meds:
-            all_drug_names.add(drug.lower().strip())
-
-        interactions = check_drug_disease_interactions(list(all_drug_names), icd9_codes)
+        # check_interactions takes DataFrames directly
+        interactions = check_interactions(patient_prescriptions, patient_diagnoses)
 
         for interaction in interactions:
             flag = VerificationFlag(
@@ -262,7 +253,7 @@ class Verifier:
                 category="medication",
                 title=f"{interaction.drug_name.title()} contraindicated with {interaction.disease_name}",
                 detail=interaction.reason,
-                evidence=f"Drug: {interaction.drug_name}, ICD-9: {interaction.disease_icd9} ({interaction.disease_name})",
+                evidence=f"Drug: {interaction.drug_name}, ICD-9: {interaction.icd9_code} ({interaction.disease_name})",
                 suggested_action=interaction.alternative or "Review and consider alternative.",
             )
             result.medication_issues.append(flag)
