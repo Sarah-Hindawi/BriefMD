@@ -19,6 +19,10 @@ COPY api/ api/
 COPY core/ core/
 COPY config/ config/
 COPY checks/ checks/
+COPY data/__init__.py data/__init__.py
+COPY data/loader.py data/loader.py
+COPY data/patient_context.py data/patient_context.py
+COPY data/comorbidity.py data/comorbidity.py
 
 RUN chown -R briefmd:briefmd /app /home/briefmd/.local
 

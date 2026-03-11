@@ -13,15 +13,18 @@ WORKDIR /app
 COPY --from=builder /root/.local /home/briefmd/.local
 COPY frontend/ frontend/
 
-RUN chown -R briefmd:briefmd /app /home/briefmd/.local
+RUN mkdir -p /home/briefmd/.streamlit \
+    && chown -R briefmd:briefmd /app /home/briefmd/.local /home/briefmd/.streamlit
 
 USER briefmd
 ENV PATH=/home/briefmd/.local/bin:$PATH
 
+WORKDIR /app/frontend
+
 EXPOSE 8501
 
 CMD sh -c "if [ \"$DASHBOARD\" = 'pcp' ]; then \
-    streamlit run frontend/pcp_dashboard.py --server.port 8501 --server.address 0.0.0.0; \
+    streamlit run pcp_dashboard.py --server.port 8501 --server.address 0.0.0.0; \
   else \
-    streamlit run frontend/ed_dashboard.py --server.port 8501 --server.address 0.0.0.0; \
+    streamlit run ed_dashboard.py --server.port 8501 --server.address 0.0.0.0; \
   fi"
