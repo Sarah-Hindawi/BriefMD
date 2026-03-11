@@ -3,7 +3,6 @@ import logging
 import pandas as pd
 
 from knowledge.hqo_checklist import run_hqo_checklist
-from knowledge.pcp_preferences import run_pcp_preferences
 from core.connector import Connector
 from core.extractor import Extractor
 from core.llm_client import LLMClient
@@ -64,7 +63,6 @@ class Agent:
 
         # Checklists (deterministic)
         hqo = run_hqo_checklist(extracted, note_text)
-        pcp = run_pcp_preferences(extracted)
 
         return FullReport(
             subject_id=subject_id,
@@ -73,7 +71,6 @@ class Agent:
             flags=flags,
             network=network,
             hqo_checklist=hqo,
-            pcp_preferences=pcp,
         )
 
     def run_ed_check(
@@ -126,7 +123,7 @@ class Agent:
             extracted=full.extracted,
             flags=full.flags,
             network=full.network,
-            pcp_preferences=full.pcp_preferences,
+            hqo_checklist=full.hqo_checklist,
             todo_list=todo,
         )
 

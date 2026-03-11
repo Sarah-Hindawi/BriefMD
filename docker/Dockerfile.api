@@ -15,14 +15,33 @@ RUN groupadd --system briefmd && useradd --system -g briefmd briefmd
 WORKDIR /app
 
 COPY --from=builder /root/.local /home/briefmd/.local
+
+# --- API layer ---
 COPY api/ api/
+
+# --- Core pipeline ---
 COPY core/ core/
+
+# --- Configuration ---
 COPY config/ config/
-COPY checks/ checks/
+
+# --- Knowledge layer (HQO checklist, drug interactions, lab ranges, RAG) ---
+# ADDED: was missing entirely — this is where clinical logic lives
+COPY knowledge/ knowledge/
+
+# --- Data loading + patient context ---
 COPY data/__init__.py data/__init__.py
 COPY data/loader.py data/loader.py
 COPY data/patient_context.py data/patient_context.py
-COPY data/comorbidity.py data/comorbidity.py
+COPY data/comorbidity.py data/comorbidity.
+
+
+# --- Dataset files (compressed CSVs) ---
+# ADDED: the actual patient data. Without this the server starts but
+# init_services() fails because load_from_local() can't find the CSVs.
+# If you mount these as a volume instead, remove this line.
+COPY data/datasets/ data/datasets/
+
 
 RUN chown -R briefmd:briefmd /app /home/briefmd/.local
 
@@ -30,5 +49,8 @@ USER briefmd
 ENV PATH=/home/briefmd/.local/bin:$PATH
 
 EXPOSE 8000
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+    CMD curl -f http://localhost:8000/api/v1/health || exit 1
 
 CMD ["uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "8000"]

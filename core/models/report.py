@@ -53,5 +53,5 @@ class PCPReport(BaseModel):
     extracted: ExtractedData
     flags: VerificationFlags
     network: ComorbidityNetwork
-    pcp_preferences: list[ChecklistItem] = Field(default_factory=list)
+    hqo_checklist: list[ChecklistItem] = Field(default_factory=list)
     todo_list: list[TodoItem] = Field(default_factory=list)

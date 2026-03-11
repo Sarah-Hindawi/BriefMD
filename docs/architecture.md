@@ -78,4 +78,3 @@ text
 
 ---
 
-> **Key insight:** BriefMd is overwhelmingly an **Application Development** project — your primary engineering value is in prompt design, RAG pipelines, agentic orchestration, and clinical context construction. The Model and Infrastructure layers are deliberately thin, which is the right trade-off for a prototype demonstrating clinical AI workflows.

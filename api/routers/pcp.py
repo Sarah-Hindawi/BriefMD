@@ -12,8 +12,7 @@ The PCP's workflow:
 from fastapi import APIRouter, HTTPException
 
 from api.dependencies import get_agent, get_bundle
-from api.schemas.pcp_request import PCPAskRequest, PCPReportRequest
-from api.schemas.patient_response import AskResponse
+from api.schemas.pcp_request import PCPReportRequest
 from data.patient_context import get_patient_context
 
 router = APIRouter()
@@ -26,7 +25,7 @@ async def report(request: PCPReportRequest):
     agent = get_agent()
 
     try:
-        ctx = get_patient_context(request.patient_id, bundle)
+        ctx = get_patient_context(request.hadm_id, bundle)
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
 

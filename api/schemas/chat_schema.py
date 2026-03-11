@@ -9,6 +9,11 @@ from pydantic import BaseModel, Field
 from typing import Optional
 
 
+class ChatMessage(BaseModel):
+    role: str = Field(description="'user' or 'assistant'")
+    content: str
+
+
 class ChatRequest(BaseModel):
     """A question from the PCP about a specific patient."""
     hadm_id: int = Field(description="Patient context to scope the answer")
@@ -19,9 +24,12 @@ class ChatRequest(BaseModel):
     )
 
 
-class ChatMessage(BaseModel):
-    role: str = Field(description="'user' or 'assistant'")
-    content: str
+class ChatSource(BaseModel):
+    """A retrieved chunk that contributed to the answer."""
+    source_type: str = Field(description="'guideline', 'patient_data', 'checklist'")
+    title: str
+    excerpt: str = Field(description="Relevant snippet (truncated)")
+    relevance_score: float
 
 
 class ChatResponse(BaseModel):
@@ -36,17 +44,9 @@ class ChatResponse(BaseModel):
     )
 
 
-class ChatSource(BaseModel):
-    """A retrieved chunk that contributed to the answer."""
-    source_type: str = Field(description="'guideline', 'patient_data', 'checklist'")
-    title: str
-    excerpt: str = Field(description="Relevant snippet (truncated)")
-    relevance_score: float
-
 class AskResponse(BaseModel):
-    patient_id: int
+    hadm_id: int
     question: str
     answer: str
-
-# Rebuild for forward refs
-ChatRequest.model_rebuild()
+    sources: list[ChatSource] = Field(default_factory=list)
+    confidence: Optional[str] = None

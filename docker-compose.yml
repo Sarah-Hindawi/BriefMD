@@ -1,80 +1,47 @@
-services:
-  ollama:
-    image: ollama/ollama:latest
-    container_name: briefmd-ollama
-    ports:
-      - "11434:11434"
-    volumes:
-      - ollama-models:/root/.ollama
-    networks:
-      - briefmd-net
-    healthcheck:
-      test: ["CMD-SHELL", "ollama list || exit 1"]
-      interval: 10s
-      timeout: 10s
-      retries: 10
-      start_period: 30s
+version: "3.9"
 
+services:
   api:
     build:
       context: .
       dockerfile: docker/Dockerfile.api
-    container_name: briefmd-api
     ports:
       - "8000:8000"
-    volumes:
-      - ./data/datasets:/app/data/datasets:ro
-    env_file:
-      - .env
+    env_file: .env
     environment:
-      - OLLAMA_HOST=http://ollama:11434
-    depends_on:
-      ollama:
-        condition: service_healthy
-    networks:
-      - briefmd-net
+      - PYTHONUNBUFFERED=1
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
-      interval: 10s
-      timeout: 10s
-      retries: 10
-      start_period: 60s
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/health"]
+      interval: 30s
+      timeout: 5s
+      start_period: 15s
+      retries: 3
+    # If datasets are large, mount instead of COPY:
+    # volumes:
+    #   - ./data/datasets:/app/data/datasets:ro
 
   ed-dashboard:
     build:
       context: .
       dockerfile: docker/Dockerfile.frontend
-    container_name: briefmd-ed
     ports:
       - "8501:8501"
     environment:
-      - API_URL=http://api:8000
       - DASHBOARD=ed
+      - API_URL=http://api:8000
     depends_on:
       api:
         condition: service_healthy
-    networks:
-      - briefmd-net
 
   pcp-dashboard:
     build:
       context: .
       dockerfile: docker/Dockerfile.frontend
-    container_name: briefmd-pcp
     ports:
       - "8502:8501"
     environment:
-      - API_URL=http://api:8000
       - DASHBOARD=pcp
+      - API_URL=http://api:8000
     depends_on:
       api:
         condition: service_healthy
-    networks:
-      - briefmd-net
-
-volumes:
-  ollama-models:
-
-networks:
-  briefmd-net:
-    driver: bridge

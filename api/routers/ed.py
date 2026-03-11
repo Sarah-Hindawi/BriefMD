@@ -8,10 +8,12 @@ The ED doctor's workflow:
   4. POST /checklist          → Quick HQO-only check (no full pipeline)
 """
 
-from fastapi import APIRouter, HTTPException
+from typing import Optional
+
+from fastapi import APIRouter, HTTPException, Query
 
 from api.dependencies import get_agent, get_bundle
-from api.schemas.ed_request import EDAnalyzeRequest
+from api.schemas.ed_request import EDAnalysisRequest
 from knowledge.hqo_checklist import run_hqo_checklist
 from data.patient_context import get_patient_context
 
@@ -19,17 +21,17 @@ router = APIRouter()
 
 
 @router.post("/analyze")
-async def analyze(request: EDAnalyzeRequest):
+async def analyze(request: EDAnalysisRequest):
     """Full pipeline: extraction + verification + HQO checklist + fix suggestions."""
     bundle = get_bundle()
     agent = get_agent()
 
     try:
-        ctx = get_patient_context(request.patient_id, bundle)
+        ctx = get_patient_context(request.hadm_id, bundle)
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
 
-    note_text = request.note_override or ctx.discharge_summary
+    note_text = request.discharge_note or ctx.discharge_summary
 
     report = agent.run_ed_check(
         note_text=note_text,
@@ -44,23 +46,23 @@ async def analyze(request: EDAnalyzeRequest):
 
 
 @router.post("/checklist")
-async def checklist(request: EDAnalyzeRequest):
+async def checklist(request: EDAnalysisRequest):
     """Just HQO checklist compliance (9 items, pass/fail). No full pipeline."""
     bundle = get_bundle()
     agent = get_agent()
 
     try:
-        ctx = get_patient_context(request.patient_id, bundle)
+        ctx = get_patient_context(request.hadm_id, bundle)
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
 
-    note_text = request.note_override or ctx.discharge_summary
+    note_text = request.discharge_note or ctx.discharge_summary
 
     extracted = agent.extractor.extract(note_text)
     items = run_hqo_checklist(extracted, note_text)
 
     return {
-        "patient_id": request.patient_id,
+        "patient_id": request.hadm_id,
         "items": [item.model_dump() for item in items],
         "passed": sum(1 for item in items if item.passed),
         "total": len(items),

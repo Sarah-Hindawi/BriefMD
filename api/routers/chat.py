@@ -12,16 +12,14 @@ The workflow:
 from fastapi import APIRouter, HTTPException
 
 from api.dependencies import get_agent, get_bundle
-# CHANGED: was PCPAskRequest from pcp_request + AskResponse from patient_response
-# Now uses dedicated chat schemas
-from api.schemas.chat_schemas import AskRequest, AskResponse
+from api.schemas.chat_schema import ChatRequest, AskResponse
 from data.patient_context import get_patient_context
 
 router = APIRouter()
 
 
 @router.post("/ask", response_model=AskResponse)
-async def ask(request: AskRequest):
+async def ask(request: ChatRequest):
     """
     RAG-powered Q&A grounded in patient data + clinical guidelines.
 
@@ -38,7 +36,7 @@ async def ask(request: AskRequest):
     agent = get_agent()
 
     try:
-        ctx = get_patient_context(request.patient_id, bundle)
+        ctx = get_patient_context(request.hadm_id, bundle)
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
 
@@ -53,7 +51,7 @@ async def ask(request: AskRequest):
     )
 
     return AskResponse(
-        patient_id=request.patient_id,
+        patient_id=request.hadm_id,
         question=request.question,
         answer=answer,
         # TODO: populate these once RAG pipeline returns source metadata
