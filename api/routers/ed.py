@@ -12,7 +12,7 @@ from fastapi import APIRouter, HTTPException
 
 from api.dependencies import get_agent, get_bundle
 from api.schemas.ed_request import EDAnalyzeRequest
-from checks.hqo_checklist import run_hqo_checklist
+from knowledge.hqo_checklist import run_hqo_checklist
 from data.patient_context import get_patient_context
 
 router = APIRouter()

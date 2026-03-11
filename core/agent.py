@@ -2,8 +2,8 @@ import logging
 
 import pandas as pd
 
-from checks.hqo_checklist import run_hqo_checklist
-from checks.pcp_preferences import run_pcp_preferences
+from knowledge.hqo_checklist import run_hqo_checklist
+from knowledge.pcp_preferences import run_pcp_preferences
 from core.connector import Connector
 from core.extractor import Extractor
 from core.llm_client import LLMClient
