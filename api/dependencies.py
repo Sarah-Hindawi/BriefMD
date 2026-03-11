@@ -28,6 +28,7 @@ async def init_services():
     # _chroma_store = ChromaStore()
     # await _chroma_store.connect()
     logger.info("ChromaDB store initialized (placeholder)")
+    logger.info(f"LLM providers available: {llm.available_providers}")
     
     # 1. Data loader
     # from data.loader import DataLoader

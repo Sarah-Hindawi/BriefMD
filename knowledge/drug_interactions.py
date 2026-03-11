@@ -37,6 +37,7 @@ class DrugDiseaseInteraction:
     severity: str              # "critical" or "warning"
     reason: str                # Why this combination is dangerous
     source: str                # Clinical reference
+    alternative: str = ""      # Suggested safer alternative
 
 
 # ---------------------------------------------------------------------------
@@ -63,6 +64,7 @@ INTERACTIONS: list[DrugDiseaseInteraction] = [
             "FDA black box warning: may cause or exacerbate heart failure."
         ),
         source="FDA Black Box Warning; NEJM 2007;356:2457-71",
+        alternative="GLP-1 agonist (liraglutide) or SGLT2 inhibitor (empagliflozin)",
     ),
     DrugDiseaseInteraction(
         drug_pattern=r"pioglitazone|actos",
@@ -76,6 +78,7 @@ INTERACTIONS: list[DrugDiseaseInteraction] = [
             "fluid retention. Contraindicated in NYHA Class III-IV heart failure."
         ),
         source="FDA Black Box Warning",
+        alternative="GLP-1 agonist (liraglutide) or SGLT2 inhibitor (empagliflozin)",
     ),
     DrugDiseaseInteraction(
         drug_pattern=r"metformin|glucophage",
@@ -89,6 +92,7 @@ INTERACTIONS: list[DrugDiseaseInteraction] = [
             "Check creatinine and eGFR before continuing."
         ),
         source="FDA Label Update 2016; Kidney Int 2017;91:527-532",
+        alternative="Insulin or linagliptin (no renal adjustment needed)",
     ),
     DrugDiseaseInteraction(
         drug_pattern=r"nsaid|ibuprofen|naproxen|diclofenac|indomethacin|ketorolac|meloxicam|celecoxib",
@@ -102,6 +106,7 @@ INTERACTIONS: list[DrugDiseaseInteraction] = [
             "Associated with increased risk of hospitalization for CHF."
         ),
         source="AHA/ACC HF Guidelines 2022; JAMA 2000;284:1159",
+        alternative="Acetaminophen for pain; avoid all NSAIDs in decompensated CHF",
     ),
     DrugDiseaseInteraction(
         drug_pattern=r"nsaid|ibuprofen|naproxen|diclofenac|indomethacin|ketorolac|meloxicam|celecoxib",
@@ -114,6 +119,7 @@ INTERACTIONS: list[DrugDiseaseInteraction] = [
             "Can accelerate CKD progression and cause acute kidney injury."
         ),
         source="KDIGO CKD Guidelines 2012",
+        alternative="Acetaminophen (≤2g/day if liver disease absent)",
     ),
 
     # ---- RENAL ----
@@ -128,6 +134,7 @@ INTERACTIONS: list[DrugDiseaseInteraction] = [
             "of life-threatening hyperkalemia. Monitor potassium closely."
         ),
         source="KDIGO Guidelines; UpToDate",
+        alternative="Loop diuretic (furosemide) with potassium monitoring",
     ),
     DrugDiseaseInteraction(
         drug_pattern=r"lithium",
@@ -141,6 +148,7 @@ INTERACTIONS: list[DrugDiseaseInteraction] = [
             "frequent monitoring."
         ),
         source="Am J Psychiatry 2012;169:227-233",
+        alternative="Valproate or lamotrigine (non-renally cleared mood stabilizers)",
     ),
 
     # ---- GI / BLEEDING ----
@@ -158,6 +166,7 @@ INTERACTIONS: list[DrugDiseaseInteraction] = [
             "significantly increases hemorrhage risk."
         ),
         source="ACCP Antithrombotic Guidelines",
+        alternative="Hold warfarin; consider PPI and reassess anticoagulation need",
     ),
     DrugDiseaseInteraction(
         drug_pattern=r"nsaid|ibuprofen|naproxen|diclofenac|aspirin|ketorolac",
@@ -171,6 +180,7 @@ INTERACTIONS: list[DrugDiseaseInteraction] = [
             "in gastric mucosa. Contraindicated with active ulcer disease."
         ),
         source="ACG Peptic Ulcer Guidelines 2017",
+        alternative="Acetaminophen for pain; PPI if NSAID unavoidable",
     ),
 
     # ---- HEPATIC ----
@@ -188,6 +198,7 @@ INTERACTIONS: list[DrugDiseaseInteraction] = [
             "liver disease. Maximum 2g/day (vs standard 4g/day)."
         ),
         source="FDA Advisory 2011; Hepatology 2005;42:1364-72",
+        alternative="Limit to ≤2g/day; consider NSAIDs short-term if no renal/GI risk",
     ),
 
     # ---- RESPIRATORY ----
@@ -205,6 +216,7 @@ INTERACTIONS: list[DrugDiseaseInteraction] = [
             "caution. Avoid propranolol, nadolol, timolol."
         ),
         source="GINA Asthma Guidelines 2023",
+        alternative="Cardioselective beta-blocker (bisoprolol or metoprolol succinate)",
     ),
 
     # ---- DIABETES + RENAL ----
@@ -219,6 +231,7 @@ INTERACTIONS: list[DrugDiseaseInteraction] = [
             "increases severe hypoglycemia risk. Dose adjust or switch."
         ),
         source="Diabetes Care 2020;43(Suppl 1):S98-S110",
+        alternative="Linagliptin (no renal adjustment) or insulin",
     ),
 ]
 
@@ -247,6 +260,7 @@ class InteractionFlag:
     severity: str
     reason: str
     source: str
+    alternative: str
 
 
 def check_interactions(
@@ -305,6 +319,7 @@ def check_interactions(
                 severity=interaction.severity,
                 reason=interaction.reason,
                 source=interaction.source,
+                alternative=interaction.alternative,
             ))
 
             logger.warning(

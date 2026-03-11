@@ -15,8 +15,18 @@ networkx>=3.3,<4.0
 streamlit>=1.38,<2.0
 plotly>=5.22,<7.0
 
+# LLM providers (Groq → Mistral → Gemini fallback chain)
+groq>=0.9,<1.0
+mistralai>=1.0,<2.0
+google-genai>=1.0,<2.0
+
+# RAG
+qdrant-client>=1.9,<2.0
+sentence-transformers>=3.0,<4.0
+
 # Dataset
 huggingface-hub>=0.24,<2.0
+python-dotenv>=1.0,<2.0
 
 # Testing
 pytest>=8.0,<9.0

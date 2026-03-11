@@ -1,25 +1,27 @@
 from pathlib import Path
 from pydantic_settings import BaseSettings
 
+class Settings:
+    """Reads from environment. No Pydantic-settings dependency needed."""
 
-class Settings(BaseSettings):
-    model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
+    # --- Data ---
+    data_dir: Path = Path(os.environ.get("BRIEFMD_DATA_DIR", "data/datasets"))
 
-    # LLM — Mistral via Ollama
-    ollama_host: str = "http://localhost:11434"
-    ollama_model: str = "mistral:7b-instruct"
-    llm_temperature: float = 0.1
-    llm_max_tokens: int = 4096
+    # --- LLM API Keys (at least one required) ---
+    groq_api_key: str = os.environ.get("GROQ_API_KEY", "")
+    mistral_api_key: str = os.environ.get("MISTRAL_API_KEY", "")
+    google_api_key: str = os.environ.get("GOOGLE_API_KEY", "")
 
-    # Data
-    data_dir: Path = Path("./data/datasets")
+    # --- LLM defaults ---
+    llm_temperature: float = float(os.environ.get("LLM_TEMPERATURE", "0.1"))
+    llm_max_tokens: int = int(os.environ.get("LLM_MAX_TOKENS", "4096"))
 
-    # API
-    api_host: str = "0.0.0.0"
-    api_port: int = 8000
+    # --- API ---
+    api_host: str = os.environ.get("API_HOST", "0.0.0.0")
+    api_port: int = int(os.environ.get("API_PORT", "8000"))
 
-    # Features
-    demo_mode: bool = False
+    # --- Logging ---
+    log_level: str = os.environ.get("LOG_LEVEL", "INFO")
 
 
 settings = Settings()

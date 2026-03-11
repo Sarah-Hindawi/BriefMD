@@ -1,65 +1,59 @@
-from __future__ import annotations
-
-from enum import Enum
+"""
+Verification Flags
+==================
+Output of core/verifier.py. Each flag represents something the verifier
+found by comparing extracted data against the patient's actual record.
+"""
 
 from pydantic import BaseModel, Field
+from typing import Optional
 
 
-class Severity(str, Enum):
-    RED = "red"          # Dangerous — must fix before discharge
-    ORANGE = "orange"    # Drug interaction or contraindication
-    YELLOW = "yellow"    # Missing info — should fix
+class VerificationFlag(BaseModel):
+    """A single issue found during verification."""
+    severity: str = Field(description="'critical', 'warning', 'info', 'monitor'")
+    category: str = Field(description="'medication', 'diagnosis', 'lab', 'documentation', 'follow_up'")
+    title: str
+    detail: str
+    evidence: Optional[str] = Field(
+        default=None,
+        description="Structured data that proves this flag (e.g., ICD-9 code, lab value)"
+    )
+    suggested_action: Optional[str] = None
 
 
-class Flag(BaseModel):
-    severity: Severity
-    category: str
-    summary: str
-    detail: str = ""
+class VerificationResult(BaseModel):
+    """Complete output of the verification step."""
+    flags: list[VerificationFlag] = Field(default_factory=list)
 
+    # Diagnosis comparison
+    diagnoses_in_note: int = 0
+    diagnoses_in_record: int = 0
+    diagnoses_missed: list[str] = Field(default_factory=list)
+    diagnoses_matched: list[str] = Field(default_factory=list)
 
-class Contraindication(BaseModel):
-    drug: str
-    condition: str
-    icd9: str = ""
-    severity_label: str = ""  # e.g. "FDA black box", "contraindicated"
-    detail: str = ""
+    # Medication comparison
+    medications_in_note: int = 0
+    medications_in_record: int = 0
+    medication_issues: list[VerificationFlag] = Field(default_factory=list)
 
-
-class DrugInteraction(BaseModel):
-    drug_a: str
-    drug_b: str
-    severity_label: str = ""
-    detail: str = ""
-
-
-class DiagnosisGap(BaseModel):
-    icd9_code: str
-    diagnosis: str
-    mentioned_in_note: bool = False
-
-
-class VerificationFlags(BaseModel):
-    """Step 2 output: cross-referencing extracted data vs structured tables."""
-
-    contraindications: list[Contraindication] = Field(default_factory=list)
-    drug_interactions: list[DrugInteraction] = Field(default_factory=list)
-    diagnosis_gaps: list[DiagnosisGap] = Field(default_factory=list)
-    lab_gaps: list[str] = Field(default_factory=list)
-    flags: list[Flag] = Field(default_factory=list)
+    # Lab comparison
+    labs_in_note: int = 0
+    labs_in_record: int = 0
+    abnormal_labs: int = 0
+    critical_labs_missed: list[str] = Field(
+        default_factory=list,
+        description="Critical/abnormal lab values not mentioned in the note"
+    )
 
     @property
-    def red_flags(self) -> list[Flag]:
-        return [f for f in self.flags if f.severity == Severity.RED]
+    def critical_count(self) -> int:
+        return sum(1 for f in self.flags if f.severity == "critical")
 
     @property
-    def orange_flags(self) -> list[Flag]:
-        return [f for f in self.flags if f.severity == Severity.ORANGE]
+    def warning_count(self) -> int:
+        return sum(1 for f in self.flags if f.severity == "warning")
 
     @property
-    def yellow_flags(self) -> list[Flag]:
-        return [f for f in self.flags if f.severity == Severity.YELLOW]
-
-    @property
-    def has_critical(self) -> bool:
-        return len(self.contraindications) > 0 or len(self.red_flags) > 0
+    def total_flags(self) -> int:
+        return len(self.flags)
