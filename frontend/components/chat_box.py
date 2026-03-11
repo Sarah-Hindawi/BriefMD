@@ -28,8 +28,8 @@ def render_chat_box(api_url: str, hadm_id: int) -> None:
         with st.spinner("Thinking..."):
             try:
                 response = httpx.post(
-                    f"{api_url}/api/v1/pcp/ask",
-                    json={"patient_id": hadm_id, "question": question},
+                    f"{api_url}/api/v1/chat/ask",
+                    json={"hadm_id": hadm_id, "question": question},
                     timeout=120.0,
                 )
                 response.raise_for_status()

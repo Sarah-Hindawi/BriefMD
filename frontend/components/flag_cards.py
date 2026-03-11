@@ -1,55 +1,36 @@
-"""Red/yellow/orange flag display component."""
+"""Flag display component matching VerificationResult schema."""
 
 import streamlit as st
 
 _SEVERITY_CONFIG = {
-    "red": {"icon": "X", "color": "#FF4B4B", "label": "CRITICAL"},
-    "orange": {"icon": "!", "color": "#FF8C00", "label": "WARNING"},
-    "yellow": {"icon": "?", "color": "#FFD700", "label": "MISSING"},
+    "critical": {"icon": "X", "color": "#FF4B4B", "label": "CRITICAL"},
+    "warning": {"icon": "!", "color": "#FF8C00", "label": "WARNING"},
+    "info": {"icon": "i", "color": "#4B9EFF", "label": "INFO"},
+    "monitor": {"icon": "?", "color": "#FFD700", "label": "MONITOR"},
 }
 
 
 def render_flag_cards(flags: dict) -> None:
-    # Contraindications
-    for ci in flags.get("contraindications", []):
-        _render_card(
-            severity="red",
-            title=f"{ci.get('drug', '')} + {ci.get('condition', '')}",
-            subtitle=ci.get("severity_label", ""),
-            detail=ci.get("detail", ""),
-        )
+    all_flags = flags.get("flags", [])
 
-    # Drug interactions
-    for di in flags.get("drug_interactions", []):
-        _render_card(
-            severity="orange",
-            title=f"{di.get('drug_a', '')} + {di.get('drug_b', '')}",
-            subtitle=di.get("severity_label", ""),
-            detail=di.get("detail", ""),
-        )
-
-    # General flags
-    for flag in flags.get("flags", []):
-        severity = flag.get("severity", "yellow")
+    for flag in all_flags:
+        severity = flag.get("severity", "info")
         _render_card(
             severity=severity,
-            title=flag.get("summary", ""),
+            title=flag.get("title", ""),
             subtitle=flag.get("category", ""),
             detail=flag.get("detail", ""),
+            action=flag.get("suggested_action", ""),
         )
 
-    # No flags
-    total = (
-        len(flags.get("contraindications", []))
-        + len(flags.get("drug_interactions", []))
-        + len(flags.get("flags", []))
-    )
-    if total == 0:
+    if not all_flags:
         st.success("No flags found.")
 
 
-def _render_card(severity: str, title: str, subtitle: str, detail: str) -> None:
-    config = _SEVERITY_CONFIG.get(severity, _SEVERITY_CONFIG["yellow"])
+def _render_card(severity: str, title: str, subtitle: str, detail: str, action: str = "") -> None:
+    config = _SEVERITY_CONFIG.get(severity, _SEVERITY_CONFIG["info"])
+
+    action_html = f'<br/><em style="color: #4B9EFF;">Suggestion: {action}</em>' if action else ""
 
     st.markdown(
         f"""<div style="
@@ -63,6 +44,7 @@ def _render_card(severity: str, title: str, subtitle: str, detail: str) -> None:
             <strong>{title}</strong><br/>
             <span style="color: #888;">{subtitle}</span>
             {f'<br/><span>{detail}</span>' if detail else ''}
+            {action_html}
         </div>""",
         unsafe_allow_html=True,
     )

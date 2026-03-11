@@ -43,9 +43,9 @@ with st.expander("View / Edit Note", expanded=False):
 # ── Run analysis ──
 if st.button("Analyze Discharge Summary", type="primary"):
     with st.spinner("Running pipeline: Extract → Verify → Connect..."):
-        payload = {"patient_id": hadm_id}
+        payload = {"hadm_id": hadm_id}
         if note_override.strip():
-            payload["note_override"] = note_override
+            payload["discharge_note"] = note_override
 
         try:
             response = httpx.post(
@@ -74,10 +74,13 @@ report = st.session_state["ed_report"]
 # Summary metrics
 col1, col2, col3, col4 = st.columns(4)
 flags = report.get("flags", {})
+all_flags = flags.get("flags", [])
 checklist = report.get("hqo_checklist", [])
-col1.metric("Contraindications", len(flags.get("contraindications", [])))
-col2.metric("Drug Interactions", len(flags.get("drug_interactions", [])))
-col3.metric("Diagnosis Gaps", len(flags.get("diagnosis_gaps", [])))
+critical = [f for f in all_flags if f.get("severity") == "critical"]
+warnings = [f for f in all_flags if f.get("severity") == "warning"]
+col1.metric("Critical Flags", len(critical))
+col2.metric("Warnings", len(warnings))
+col3.metric("Diagnoses Missed", len(flags.get("diagnoses_missed", [])))
 col4.metric("HQO Score", f"{sum(1 for c in checklist if c.get('passed'))}/{len(checklist)}")
 
 # Flags

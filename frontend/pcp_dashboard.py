@@ -38,7 +38,7 @@ if st.button("Generate Report", type="primary"):
         try:
             response = httpx.post(
                 f"{API_URL}/api/v1/pcp/report",
-                json={"patient_id": hadm_id},
+                json={"hadm_id": hadm_id},
                 timeout=120.0,
             )
             response.raise_for_status()
@@ -62,12 +62,14 @@ report = st.session_state["pcp_report"]
 # Summary metrics
 col1, col2, col3, col4 = st.columns(4)
 flags = report.get("flags", {})
+all_flags = flags.get("flags", [])
 todo = report.get("todo_list", [])
-pcp_prefs = report.get("pcp_preferences", [])
-col1.metric("Contraindications", len(flags.get("contraindications", [])))
-col2.metric("Drug Interactions", len(flags.get("drug_interactions", [])))
+checklist = report.get("hqo_checklist", [])
+critical = [f for f in all_flags if f.get("severity") == "critical"]
+col1.metric("Critical Flags", len(critical))
+col2.metric("Total Flags", len(all_flags))
 col3.metric("To-Do Items", len(todo))
-col4.metric("PCP Prefs Score", f"{sum(1 for p in pcp_prefs if p.get('passed'))}/{len(pcp_prefs)}")
+col4.metric("HQO Score", f"{sum(1 for c in checklist if c.get('passed'))}/{len(checklist)}")
 
 # To-do list
 st.subheader("Actionable To-Do List")
@@ -82,9 +84,9 @@ st.subheader("Comorbidity Network")
 network = report.get("network", {})
 render_comorbidity_graph(network)
 
-# PCP Preferences
-st.subheader("PCP Preferences Checklist")
-render_checklist(pcp_prefs)
+# HQO Checklist
+st.subheader("HQO Safe Discharge Checklist")
+render_checklist(checklist)
 
 # Q&A
 st.subheader("Ask About This Patient")

@@ -1,5 +1,7 @@
 import os
 from pathlib import Path
+from dotenv import load_dotenv
+load_dotenv()
 
 class Settings:
     """Reads from environment. No Pydantic-settings dependency needed."""
