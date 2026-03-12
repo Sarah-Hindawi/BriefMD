@@ -48,10 +48,13 @@ async def ask(request: ChatRequest):
         extracted=extracted,
         patient_diagnoses=ctx.diagnoses,
         patient_prescriptions=ctx.prescriptions,
+        age=ctx.age,
+        gender=ctx.gender,
+        admission_diagnosis=ctx.admission_diagnosis,
     )
 
     return AskResponse(
-        patient_id=request.hadm_id,
+        hadm_id=request.hadm_id,
         question=request.question,
         answer=answer,
         # TODO: populate these once RAG pipeline returns source metadata

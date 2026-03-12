@@ -117,9 +117,14 @@ class Agent:
 
         todo = _generate_todo_list(full.flags, full.extracted)
 
+        # LLM call 2: generate PCP-facing summary
+        logger.info("Generating PCP summary")
+        pcp_summary = self.extractor.summarize_for_pcp(full.extracted)
+
         return PCPReport(
             subject_id=subject_id,
             hadm_id=hadm_id,
+            pcp_summary=pcp_summary,
             extracted=full.extracted,
             flags=full.flags,
             network=full.network,
@@ -134,20 +139,39 @@ class Agent:
         extracted: ExtractedData,
         patient_diagnoses: pd.DataFrame,
         patient_prescriptions: pd.DataFrame,
+        age: int = 0,
+        gender: str = "",
+        admission_diagnosis: str = "",
     ) -> str:
-        """PCP Q&A: Mistral answers using patient data as context."""
+        """PCP Q&A: LLM answers using patient data as context."""
         diagnoses_str = ", ".join(extracted.diagnoses_mentioned) if extracted.diagnoses_mentioned else "none extracted"
         meds_str = ", ".join(m.name for m in extracted.medications_discharge) if extracted.medications_discharge else "none extracted"
         allergies_str = ", ".join(extracted.allergies) if extracted.allergies else "none documented"
+        labs_str = ", ".join(extracted.lab_results_discussed) if extracted.lab_results_discussed else "none discussed"
+        follow_up_str = "; ".join(
+            f"{f.provider} ({f.specialty}) in {f.timeframe}" for f in extracted.follow_up_plan
+        ) if extracted.follow_up_plan else "none documented"
+
+        pmh_str = ", ".join(extracted.past_medical_history) if extracted.past_medical_history else "none documented"
 
         prompt = f"""Answer the doctor's question using ONLY the patient data below.
 Be concise and clinically precise. If the data doesn't contain the answer, say so.
 
 Patient context:
+- Age: {age if age else 'unknown'} years old
+- Gender/Sex: {'Female' if gender == 'F' else 'Male' if gender == 'M' else gender or 'unknown'}
+- Admission diagnosis: {admission_diagnosis or extracted.admission_diagnosis or 'unknown'}
+- Chief complaint: {extracted.chief_complaint or 'unknown'}
+- Past medical history: {pmh_str}
+- Family history: {extracted.family_history or 'none documented'}
+- Social history: {extracted.social_history or 'none documented'}
 - Diagnoses: {diagnoses_str}
 - Medications: {meds_str}
 - Allergies: {allergies_str}
-- Chief complaint: {extracted.chief_complaint}
+- Labs discussed: {labs_str}
+- Follow-up plan: {follow_up_str}
+- PCP: {extracted.pcp_name or 'not documented'}
+- Discharge instructions: {extracted.discharge_instructions[:300] if extracted.discharge_instructions else 'none'}
 
 Doctor's question: {question}"""
 

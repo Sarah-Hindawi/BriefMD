@@ -50,6 +50,7 @@ class PCPReport(BaseModel):
 
     subject_id: int
     hadm_id: int
+    pcp_summary: str = Field(default="", description="LLM-generated 5-bullet summary for the receiving PCP")
     extracted: ExtractedData
     flags: VerificationResult
     network: ComorbidityNetwork

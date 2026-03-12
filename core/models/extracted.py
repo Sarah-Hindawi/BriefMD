@@ -38,6 +38,10 @@ class ExtractedData(BaseModel):
     admission_diagnosis: str = ""
     discharge_diagnosis: str = ""
 
+    past_medical_history: list[str] = Field(default_factory=list)
+    family_history: str = ""
+    social_history: str = ""
+
     diagnoses_mentioned: list[str] = Field(default_factory=list)
     allergies: list[str] = Field(default_factory=list)
 

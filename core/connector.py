@@ -24,12 +24,36 @@ KNOWN_DANGEROUS = {
 }
 
 
+# Fallback for codes missing from the diagnosis dictionary entirely
+_MISSING_CODE_NAMES = {
+    "1732": "Malignant melanoma of ear",
+    "1733": "Malignant melanoma of face NEC",
+    "1734": "Malignant melanoma of scalp/neck",
+    "1735": "Malignant melanoma of trunk",
+    "3337": "Sympathetic reflex dystrophy",
+    "4251": "Hypertrophic obstructive cardiomyopathy",
+    "4440": "Atherosclerosis of extremities",
+    "4881": "Legionnaires disease",
+    "5996": "Urinary obstruction",
+    "7473": "Essential hemorrhage",
+    "7671": "Fetal death from asphyxia",
+    "7687": "Abnormal fetal heart rate/rhythm",
+    "7775": "Neonatal bradycardia",
+    "7793": "Feeding difficulties",
+    "9697": "Late effect of radiation",
+    "9708": "Other radiation sickness",
+    "9952": "Adverse effect of drug, unspecified",
+    "9995": "Child maltreatment syndrome",
+    "V721": "Exam of ears and hearing",
+}
+
+
 class Connector:
     """Step 3: Build comorbidity network from ICD9 codes. No LLM."""
 
     def __init__(self, all_diagnoses: pd.DataFrame, diagnosis_dict: pd.DataFrame) -> None:
         self.all_diagnoses = all_diagnoses
-        self.code_to_title = self._build_code_map(diagnosis_dict)
+        self._icd9_lookup = self._build_icd9_lookup(diagnosis_dict)
         self.cooccurrence = self._build_cooccurrence()
 
     def connect(
@@ -42,7 +66,7 @@ class Connector:
         nodes = [
             Node(
                 icd9_code=n,
-                label=self.code_to_title.get(n, n),
+                label=self._lookup_name(n),
                 is_dangerous=self._is_dangerous_node(n, patient_codes),
             )
             for n in G.nodes
@@ -80,20 +104,49 @@ class Connector:
             similar_patients=similar,
         )
 
-    def _build_code_map(self, diagnosis_dict: pd.DataFrame) -> dict[str, str]:
+    def _build_icd9_lookup(self, diagnosis_dict: pd.DataFrame) -> dict[str, str]:
+        """Build ICD-9 lookup with both dotted and undotted code variants."""
         if diagnosis_dict.empty:
             return {}
 
-        code_col = "icd9_code"
-        title_col = "short_title" if "short_title" in diagnosis_dict.columns else "long_title"
+        lookup: dict[str, str] = {}
+        for _, row in diagnosis_dict.iterrows():
+            code = str(row.get("icd9_code", "")).strip()
+            name = str(row.get("long_title", row.get("short_title", "")))
+            if code and name:
+                lookup[code] = name
+                lookup[code.replace(".", "")] = name
 
-        if code_col not in diagnosis_dict.columns or title_col not in diagnosis_dict.columns:
-            return {}
+        return lookup
 
-        return dict(zip(
-            diagnosis_dict[code_col].astype(str).str.strip(),
-            diagnosis_dict[title_col].astype(str),
-        ))
+    def _lookup_name(self, code: str) -> str:
+        """Resolve ICD-9 code to human-readable name with fuzzy fallbacks."""
+        code = str(code).strip()
+
+        # 1. Exact match
+        if code in self._icd9_lookup:
+            return self._icd9_lookup[code]
+
+        # 2. Try common suffixes (0, 1, 9)
+        for suffix in ("0", "1", "9"):
+            if code + suffix in self._icd9_lookup:
+                return self._icd9_lookup[code + suffix]
+
+        # 3. Try truncating last digit (child -> parent)
+        if len(code) > 3 and code[:-1] in self._icd9_lookup:
+            return self._icd9_lookup[code[:-1]]
+
+        # 4. Prefix scan — first dictionary code starting with this
+        for dict_code, name in self._icd9_lookup.items():
+            if dict_code.startswith(code) or code.startswith(dict_code):
+                return name
+
+        # 5. Hardcoded fallback for codes missing from dictionary
+        if code in _MISSING_CODE_NAMES:
+            return _MISSING_CODE_NAMES[code]
+
+        # 6. Give up — return raw code
+        return code
 
     def _build_cooccurrence(self) -> dict[tuple[str, str], int]:
         if self.all_diagnoses.empty:
@@ -136,7 +189,7 @@ class Connector:
                 continue
 
             codes = sorted(component)
-            labels = [self.code_to_title.get(c, c) for c in codes]
+            labels = [self._lookup_name(c) for c in codes]
 
             risk_notes: list[str] = []
             for i, a in enumerate(codes):
