@@ -23,13 +23,19 @@ st.caption("Verify discharge summaries before they leave the hospital")
 
 # ── Patient selector ──
 @st.cache_data(ttl=300)
+def _fetch_patients():
+    """Fetch patient list from API (cached only on success)."""
+    resp = httpx.get(f"{API_URL}/api/v1/patients", timeout=30.0)
+    resp.raise_for_status()
+    return resp.json()
+
+
 def load_patients():
-    """Fetch patient list from API."""
+    """Load patients, clearing cache on failure so errors aren't sticky."""
     try:
-        resp = httpx.get(f"{API_URL}/api/v1/patients", timeout=10.0)
-        resp.raise_for_status()
-        return resp.json()
+        return _fetch_patients()
     except Exception as e:
+        _fetch_patients.clear()
         st.error(f"Failed to load patients: {e}")
         return []
 

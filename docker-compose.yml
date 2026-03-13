@@ -28,6 +28,7 @@ services:
       - "8501:8501"
     environment:
       - DASHBOARD=ed
+      - STREAMLIT_PORT=8501
       - API_URL=http://api:8000
     depends_on:
       api:
@@ -38,9 +39,10 @@ services:
       context: .
       dockerfile: docker/Dockerfile.frontend
     ports:
-      - "8502:8501"
+      - "8502:8502"
     environment:
       - DASHBOARD=pcp
+      - STREAMLIT_PORT=8502
       - API_URL=http://api:8000
     depends_on:
       api:

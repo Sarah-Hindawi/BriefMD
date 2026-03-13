@@ -18,13 +18,14 @@ RUN mkdir -p /home/briefmd/.streamlit \
 
 USER briefmd
 ENV PATH=/home/briefmd/.local/bin:$PATH
+ENV STREAMLIT_PORT=8501
 
 WORKDIR /app/frontend
 
-EXPOSE 8501
+EXPOSE ${STREAMLIT_PORT}
 
 CMD sh -c "if [ \"$DASHBOARD\" = 'pcp' ]; then \
-    streamlit run pcp_dashboard.py --server.port 8501 --server.address 0.0.0.0; \
+    streamlit run pcp_dashboard.py --server.port $STREAMLIT_PORT --server.address 0.0.0.0; \
   else \
-    streamlit run ed_dashboard.py --server.port 8501 --server.address 0.0.0.0; \
+    streamlit run ed_dashboard.py --server.port $STREAMLIT_PORT --server.address 0.0.0.0; \
   fi"

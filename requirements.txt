@@ -23,6 +23,9 @@ google-genai>=1.0,<2.0
 # RAG
 qdrant-client>=1.9,<2.0
 sentence-transformers>=3.0,<4.0
+# CPU-only torch to avoid downloading 400+ MB of CUDA libraries
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch==2.1.0
 
 # Dataset
 huggingface-hub>=0.24,<2.0
